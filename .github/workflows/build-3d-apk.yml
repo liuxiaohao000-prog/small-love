@@ -56,10 +56,14 @@ jobs:
           TGZ=$(npm pack three@0.184.0 --silent | tail -1)
           tar -xzf "$TGZ"
           cp package/build/three.module.min.js project/app/src/main/assets/www/vendor/three.module.min.js
-          BYTES=$(wc -c < project/app/src/main/assets/www/vendor/three.module.min.js)
-          echo "Bundled Three.js module bytes: $BYTES"
-          test "$BYTES" -gt 250000
+          cp package/build/three.core.min.js project/app/src/main/assets/www/vendor/three.core.min.js
+          MODULE_BYTES=$(wc -c < project/app/src/main/assets/www/vendor/three.module.min.js)
+          CORE_BYTES=$(wc -c < project/app/src/main/assets/www/vendor/three.core.min.js)
+          echo "Bundled Three.js module bytes: $MODULE_BYTES; core bytes: $CORE_BYTES"
+          test "$MODULE_BYTES" -gt 250000
+          test "$CORE_BYTES" -gt 100000
           grep -q 'WebGLRenderer' project/app/src/main/assets/www/vendor/three.module.min.js
+          grep -q 'Vector3' project/app/src/main/assets/www/vendor/three.core.min.js
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -90,6 +94,7 @@ jobs:
           grep -q 'WebViewAssetLoader' project/app/src/main/java/com/xiaoyu/xiaoai/MainActivity.java
           grep -q 'Math.min(window.devicePixelRatio || 1, 1.5)' project/app/src/main/assets/www/game3d.js
           grep -q '1000/60' project/app/src/main/assets/www/game3d.js
+          grep -q "from './three.core.min.js'" project/app/src/main/assets/www/vendor/three.module.min.js
           ! grep -q 'android.permission.INTERNET' project/app/src/main/AndroidManifest.xml
 
       - name: Build APK
@@ -103,6 +108,8 @@ jobs:
           APK=project/app/build/outputs/apk/debug/app-debug.apk
           test -s "$APK"
           unzip -t "$APK" >/dev/null
+          unzip -l "$APK" | grep -q 'assets/www/vendor/three.module.min.js'
+          unzip -l "$APK" | grep -q 'assets/www/vendor/three.core.min.js'
           $ANDROID_HOME/build-tools/36.0.0/apksigner verify --verbose --print-certs "$APK" > signing-info.txt
           $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" > build-info.txt
           grep -q "package: name='com.xiaoyu.xiaoai.debug'" build-info.txt
