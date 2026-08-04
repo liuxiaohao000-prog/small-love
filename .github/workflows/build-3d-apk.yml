@@ -1,4 +1,4 @@
-name: Build XiaoAi Manor 3D Anime APK
+name: Build XiaoAi Manor 3D Anime Hotfix APK
 
 on:
   workflow_dispatch:
@@ -126,10 +126,47 @@ jobs:
           import re
           p=Path('project/app/build.gradle')
           s=p.read_text()
-          s2,n1=re.subn(r'versionCode\s+\d+', 'versionCode 5', s, count=1)
-          s3,n2=re.subn(r'versionName\s+["\'][^"\']+["\']', 'versionName "4.0.0-anime-alpha"', s2, count=1)
+          s2,n1=re.subn(r'versionCode\s+\d+', 'versionCode 6', s, count=1)
+          s3,n2=re.subn(r'versionName\s+["\'][^"\']+["\']', 'versionName "4.0.1-anime-hotfix"', s2, count=1)
           assert n1==1 and n2==1, (n1,n2)
           p.write_text(s3)
+          PY
+
+      - name: Apply Android WebView iterable compatibility hotfix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('project/app/src/main/assets/www/game3d.js')
+          s=p.read_text()
+          old="""function part(parent, geometry, material, position = [0, 0, 0], rotation = [0, 0, 0], scale = [1, 1, 1]) {
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.set(...position);
+            mesh.rotation.set(...rotation);
+            mesh.scale.set(...scale);"""
+          new="""function xyz(value, fallback = [0, 0, 0]) {
+            if (Array.isArray(value)) return [value[0] ?? fallback[0], value[1] ?? fallback[1], value[2] ?? fallback[2]];
+            if (value && typeof value === 'object') return [value.x ?? value._x ?? fallback[0], value.y ?? value._y ?? fallback[1], value.z ?? value._z ?? fallback[2]];
+            return fallback.slice();
+          }
+
+          function part(parent, geometry, material, position = [0, 0, 0], rotation = [0, 0, 0], scale = [1, 1, 1]) {
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.set(...xyz(position));
+            mesh.rotation.set(...xyz(rotation));
+            mesh.scale.set(...xyz(scale, [1, 1, 1]));"""
+          assert old in s
+          s=s.replace(old,new,1)
+          s=s.replace('pivot.position.set(...pivotPosition);','pivot.position.set(...xyz(pivotPosition));')
+          s=s.replace('object.position.set(...position);','object.position.set(...xyz(position));')
+          s=s.replace('object.rotation.set(...rotation);','object.rotation.set(...xyz(rotation));')
+          s=s.replace('object.scale.set(...scale);','object.scale.set(...xyz(scale, [1, 1, 1]));')
+          s=s.replace("UI.loadingText.textContent = `3D 场景加载失败：${error?.message || error}`;", "UI.loadingText.textContent = `3D 场景加载失败：${error?.message || error}`;\n  console.error('XiaoAi 3D fatal', error?.stack || error);")
+          p.write_text(s)
+          index=Path('project/app/src/main/assets/www/index.html')
+          html=index.read_text().replace('小爱庄园 3D 动作版','小爱庄园 3D 动漫版',2).replace('3D Motion Alpha v3.0','3D Anime Hotfix v4.0.1')
+          index.write_text(html)
           PY
 
       - name: Bundle Three.js r184 offline
@@ -173,6 +210,9 @@ jobs:
           set -euo pipefail
           JS=project/app/src/main/assets/www/game3d.js
           node --check "$JS"
+          grep -q 'function xyz(value, fallback' "$JS"
+          grep -q 'mesh.position.set(...xyz(position))' "$JS"
+          grep -q 'object.scale.set(...xyz(scale, \[1, 1, 1\]))' "$JS"
           grep -q 'function addAnimeOutline' "$JS"
           grep -q "root.userData.modelVersion='anime-v4'" "$JS"
           grep -q "document.documentElement.dataset.controlVersion = 'direction-fixed-v4'" "$JS"
@@ -208,6 +248,8 @@ jobs:
           grep -q 'assets/www/vendor/three.core.min.js' apk-files.txt
           unzip -p "$APK" assets/www/game3d.js > packaged-game3d.js
           grep -q 'function addAnimeOutline' packaged-game3d.js
+          grep -q 'function xyz(value, fallback' packaged-game3d.js
+          grep -q 'mesh.position.set(...xyz(position))' packaged-game3d.js
           grep -q "root.userData.modelVersion='anime-v4'" packaged-game3d.js
           grep -q 'direction-fixed-v4' packaged-game3d.js
           grep -q 'joy.set(-x/max, y/max)' packaged-game3d.js
@@ -219,19 +261,19 @@ jobs:
           $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" > build-info.txt
           cat build-info.txt
           grep -q "package: name='com.xiaoyu.xiaoai.debug'" build-info.txt
-          grep -q "versionCode='5'" build-info.txt
-          grep -q "versionName='4.0.0-anime-alpha-debug'" build-info.txt
+          grep -q "versionCode='6'" build-info.txt
+          grep -q "versionName='4.0.1-anime-hotfix-debug'" build-info.txt
           grep -q "launchable-activity: name='com.xiaoyu.xiaoai.MainActivity'" build-info.txt
           mkdir dist
-          cp "$APK" dist/xiaoai-manor-3d-anime-oneplus12-v4.0.0-alpha.apk
+          cp "$APK" dist/xiaoai-manor-3d-anime-oneplus12-v4.0.1-hotfix.apk
           cp signing-info.txt build-info.txt dist/
-          sha256sum dist/xiaoai-manor-3d-anime-oneplus12-v4.0.0-alpha.apk > dist/SHA256SUMS.txt
+          sha256sum dist/xiaoai-manor-3d-anime-oneplus12-v4.0.1-hotfix.apk > dist/SHA256SUMS.txt
           ls -lh dist
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: xiaoai-manor-3d-anime-oneplus12-v4-alpha
+          name: xiaoai-manor-3d-anime-oneplus12-v4.0.1-hotfix
           path: dist/
           if-no-files-found: error
           retention-days: 30
