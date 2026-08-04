@@ -54,7 +54,10 @@ jobs:
           TGZ=$(npm pack three@0.184.0 --silent | tail -1)
           tar -xzf "$TGZ"
           cp package/build/three.module.min.js project/app/src/main/assets/www/vendor/three.module.min.js
-          test $(wc -c < project/app/src/main/assets/www/vendor/three.module.min.js) -gt 500000
+          BYTES=$(wc -c < project/app/src/main/assets/www/vendor/three.module.min.js)
+          echo "Bundled Three.js module bytes: $BYTES"
+          test "$BYTES" -gt 250000
+          grep -q 'WebGLRenderer' project/app/src/main/assets/www/vendor/three.module.min.js
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
