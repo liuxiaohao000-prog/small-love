@@ -46,6 +46,8 @@ jobs:
           echo '6e26b04767986c26a99d8409158ebf27450932b01939f347fc28ca957e40beba  project.tar.gz' | sha256sum -c -
           mkdir project
           tar -xzf project.tar.gz -C project
+          sed -i 's/android.useAndroidX=false/android.useAndroidX=true/' project/gradle.properties
+          grep -q '^android.useAndroidX=true$' project/gradle.properties
 
       - name: Bundle Three.js r184 offline
         shell: bash
