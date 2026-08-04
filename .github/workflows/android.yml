@@ -34,7 +34,8 @@ jobs:
               '02': (5000, 'c0efb09a1af328009676b1cd5b63a1095182c168a5c0af0416edd57fe203fe40'),
               '03': (5000, '03e37d31f3cb90251b195d03d149adb17a880eba80c1804b6816eaec1fe9f89d'),
               '04': (5000, '06e9178c814f25afc265a6605d2b644f0508280696b62c7a6d6f6d530826ae37'),
-              '05': (5000, '89fab5a6ef36b9aa85bbf60ba65bf12e1edce07720d0c20a4f82079959aa0495'),
+              '05a': (2500, '4a86f09ecb0b8b0e1f72e1adfd42f137effd0e3ca0e0e1ab91b9ea79720dd9e8'),
+              '05b': (2500, 'cd0a33ed0dccb07540e6912b798b3a29ff49dcced30e924b89e5be6cb535240b'),
               '06': (5000, '340a9161b85934efc17127219d435478ac0a113cfd8d08fc15871287253f34bf'),
               '07': (4840, 'ee85a9b2ecd8ee06fe50abfcd0b37af8333bc1aa2ac0d00899ac1a56728be6d3'),
           }
@@ -54,7 +55,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat android-build-payload-v2/part.* > android-project.compact.b64
+          cat \
+            android-build-payload-v2/part.00 \
+            android-build-payload-v2/part.01 \
+            android-build-payload-v2/part.02 \
+            android-build-payload-v2/part.03 \
+            android-build-payload-v2/part.04 \
+            android-build-payload-v2/part.05a \
+            android-build-payload-v2/part.05b \
+            android-build-payload-v2/part.06 \
+            android-build-payload-v2/part.07 \
+            > android-project.compact.b64
           base64 --decode android-project.compact.b64 > android-project.tar.gz
           echo "ce5a759d2b7700fd0ce1a5af0cdcf7ba55000a2db784d2cf2a1fd93293024647  android-project.tar.gz" | sha256sum -c -
           mkdir android-project
