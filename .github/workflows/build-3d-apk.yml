@@ -103,7 +103,8 @@ jobs:
             '04': (5000,'f69e47606b79bd55d8ddba9b665e0c7c1adc1491f65d4891d3aaa03ed36fc799'),
             '05': (5000,'8fd18aac2d05561e7fa1aeda61053a1eafd89fe5f2112e03f4f9c1cdb85a90c1'),
             '06': (5000,'850223225d7efeb3816aa4fc7f1fe909ea8d7488f55d9b2de7dd07219994ff85'),
-            '07': (4908,'0b7718e7313f8a15c3eb19986e0745f6e3dbfe0436b9ad228fc94a7da1d264fd'),
+            '07a': (2450,'f2fe4493bb3f27d08551bbb7db7dc1297961313b5db3d46d2d115c2357aa881c'),
+            '07b': (2458,'2e0e2dcbe045a7e0d97576b7e5b115be2f4daddee5d95581690bf152e02b9d14'),
           }
           for key,(length,wanted) in expected.items():
             data=''.join(Path(f'3d-v4-payload/part.{key}').read_text().split())
@@ -115,7 +116,7 @@ jobs:
             3d-v4-payload/part.00 3d-v4-payload/part.01 \
             3d-v4-payload/part.02 3d-v4-payload/part.03 \
             3d-v4-payload/part.04 3d-v4-payload/part.05 \
-            3d-v4-payload/part.06 3d-v4-payload/part.07 \
+            3d-v4-payload/part.06 3d-v4-payload/part.07a 3d-v4-payload/part.07b \
             > anime-v4-patch.tar.gz.b64
           base64 --decode anime-v4-patch.tar.gz.b64 > anime-v4-patch.tar.gz
           echo '1f1b62e8f397ffbd6d45034ea595c58b34f4513671285c5f5d48883bb376751b  anime-v4-patch.tar.gz' | sha256sum -c -
