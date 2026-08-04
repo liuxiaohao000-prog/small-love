@@ -21,12 +21,15 @@ jobs:
       - name: Checkout build branch
         uses: actions/checkout@v4
 
-      - name: Restore Android project
+      - name: Restore and verify Android project
         shell: bash
         run: |
           set -euo pipefail
-          cat android-build-payload/part.* > android-project.tar.gz.b64
-          base64 --decode android-project.tar.gz.b64 > android-project.tar.gz
+          cat android-build-payload/part.* \
+            | tr -cd 'A-Za-z0-9+/=' \
+            > android-project.compact.b64
+          base64 --decode android-project.compact.b64 > android-project.tar.gz
+          echo "ce5a759d2b7700fd0ce1a5af0cdcf7ba55000a2db784d2cf2a1fd93293024647  android-project.tar.gz" | sha256sum -c -
           mkdir android-project
           tar -xzf android-project.tar.gz -C android-project
           test -f android-project/settings.gradle
