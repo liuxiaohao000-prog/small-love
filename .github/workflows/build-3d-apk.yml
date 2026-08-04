@@ -1,0 +1,117 @@
+name: Build XiaoAi Manor 3D APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [build/3d-alpha-v2]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify and restore project
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          expected = {
+            '00': (5000,'9127ed74bbb3b56c0d66762064c14b4f2ac7a27a0620d3d27db2c66ebb5a4084'),
+            '01': (5000,'64838f98e4a92ef0ff9dee293db7dab63b5c2f206cda2e651dffade5a2d0ee63'),
+            '02': (5000,'c90469bba2ac7a22cba8bccc3526809a4adc0a3a4bd93a4534fc82a900017e19'),
+            '03': (5000,'fa6410b15c5082a7c3a08adfb36b074ab748d19f9559662188e913ab970bfd15'),
+            '04': (5000,'b0615097d771a04b42c2aaba56aafa893371e133afe81775aac17152d87e0dee'),
+            '05': (5000,'28fdea207babefaf635732a63fdbe1cc9740299322b5a0d447a8caf4f29cca43'),
+            '06': (5000,'cd55e10a8b95dabab6849cda05087712326c10aa21b2e537926878ec33957e3a'),
+            '07': (3360,'1e7a9ab250f490a2476b591cf3003156c6b057aaaabe84d80885cef979f78fc6'),
+          }
+          for key,(length,wanted) in expected.items():
+            data=''.join(Path(f'3d-build-payload/part.{key}').read_text().split())
+            actual=hashlib.sha256(data.encode()).hexdigest()
+            print(key,len(data),actual)
+            assert len(data)==length and actual==wanted
+          PY
+          cat 3d-build-payload/part.* > project.tar.gz.b64
+          base64 --decode project.tar.gz.b64 > project.tar.gz
+          echo '6e26b04767986c26a99d8409158ebf27450932b01939f347fc28ca957e40beba  project.tar.gz' | sha256sum -c -
+          mkdir project
+          tar -xzf project.tar.gz -C project
+
+      - name: Bundle Three.js r184 offline
+        shell: bash
+        run: |
+          set -euo pipefail
+          TGZ=$(npm pack three@0.184.0 --silent | tail -1)
+          tar -xzf "$TGZ"
+          cp package/build/three.module.min.js project/app/src/main/assets/www/vendor/three.module.min.js
+          test $(wc -c < project/app/src/main/assets/www/vendor/three.module.min.js) -gt 500000
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle 9.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.1.0'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install API 36
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'platform-tools'
+
+      - name: Validate source
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check project/app/src/main/assets/www/game3d.js
+          grep -q 'oneplus12-balanced-3d-60' project/app/src/main/java/com/xiaoyu/xiaoai/MainActivity.java
+          grep -q 'WebViewAssetLoader' project/app/src/main/java/com/xiaoyu/xiaoai/MainActivity.java
+          grep -q 'Math.min(window.devicePixelRatio || 1, 1.5)' project/app/src/main/assets/www/game3d.js
+          grep -q '1000/60' project/app/src/main/assets/www/game3d.js
+          ! grep -q 'android.permission.INTERNET' project/app/src/main/AndroidManifest.xml
+
+      - name: Build APK
+        shell: bash
+        run: gradle --no-daemon --stacktrace -p project :app:assembleDebug
+
+      - name: Verify and prepare artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=project/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          unzip -t "$APK" >/dev/null
+          $ANDROID_HOME/build-tools/36.0.0/apksigner verify --verbose --print-certs "$APK" > signing-info.txt
+          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" > build-info.txt
+          grep -q "package: name='com.xiaoyu.xiaoai.debug'" build-info.txt
+          grep -q "launchable-activity: name='com.xiaoyu.xiaoai.MainActivity'" build-info.txt
+          mkdir dist
+          cp "$APK" dist/xiaoai-manor-3d-oneplus12-v2.0.0-alpha.apk
+          cp signing-info.txt build-info.txt dist/
+          sha256sum dist/xiaoai-manor-3d-oneplus12-v2.0.0-alpha.apk > dist/SHA256SUMS.txt
+          ls -lh dist
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: xiaoai-manor-3d-oneplus12-v2-alpha
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
