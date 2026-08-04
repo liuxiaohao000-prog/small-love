@@ -153,10 +153,14 @@ jobs:
           APK=project/app/build/outputs/apk/debug/app-debug.apk
           test -s "$APK"
           unzip -t "$APK" >/dev/null
-          unzip -l "$APK" | grep -q 'assets/www/vendor/three.module.min.js'
-          unzip -l "$APK" | grep -q 'assets/www/vendor/three.core.min.js'
-          unzip -p "$APK" assets/www/game3d.js | grep -q 'fishing-bait-cast'
-          unzip -p "$APK" assets/www/game3d.js | grep -q 'function playPetDog'
+          unzip -Z1 "$APK" > apk-files.txt
+          grep -q 'assets/www/vendor/three.module.min.js' apk-files.txt
+          grep -q 'assets/www/vendor/three.core.min.js' apk-files.txt
+          unzip -p "$APK" assets/www/game3d.js > packaged-game3d.js
+          grep -q 'fishing-bait-cast' packaged-game3d.js
+          grep -q 'function playPetDog' packaged-game3d.js
+          grep -q 'water-crops' packaged-game3d.js
+          grep -q 'cafe-stir-serve' packaged-game3d.js
           $ANDROID_HOME/build-tools/36.0.0/apksigner verify --verbose --print-certs "$APK" > signing-info.txt
           $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" > build-info.txt
           grep -q "package: name='com.xiaoyu.xiaoai.debug'" build-info.txt
