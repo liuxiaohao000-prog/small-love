@@ -1,4 +1,4 @@
-name: Build XiaoAi Manor 3D Motion APK
+name: Build XiaoAi Manor 3D Anime APK
 
 on:
   workflow_dispatch:
@@ -39,7 +39,12 @@ jobs:
             print('base',key,len(data),actual)
             assert len(data)==length and actual==wanted
           PY
-          cat 3d-build-payload/part.* > project.tar.gz.b64
+          cat \
+            3d-build-payload/part.00 3d-build-payload/part.01 \
+            3d-build-payload/part.02 3d-build-payload/part.03 \
+            3d-build-payload/part.04 3d-build-payload/part.05 \
+            3d-build-payload/part.06 3d-build-payload/part.07 \
+            > project.tar.gz.b64
           base64 --decode project.tar.gz.b64 > project.tar.gz
           echo '6e26b04767986c26a99d8409158ebf27450932b01939f347fc28ca957e40beba  project.tar.gz' | sha256sum -c -
           mkdir project
@@ -47,7 +52,7 @@ jobs:
           sed -i 's/android.useAndroidX=false/android.useAndroidX=true/' project/gradle.properties
           grep -q '^android.useAndroidX=true$' project/gradle.properties
 
-      - name: Verify and apply v3 models and motion patch
+      - name: Verify and apply v3 motion patch
         shell: bash
         run: |
           set -euo pipefail
@@ -72,17 +77,56 @@ jobs:
             print('v3',key,len(data),actual)
             assert len(data)==length and actual==wanted
           PY
-          cat 3d-v3-payload/part.* > motion-patch.tar.gz.b64
+          cat \
+            3d-v3-payload/part.00 3d-v3-payload/part.01 \
+            3d-v3-payload/part.02 3d-v3-payload/part.03 \
+            3d-v3-payload/part.04 3d-v3-payload/part.05 \
+            3d-v3-payload/part.06 3d-v3-payload/part.07 \
+            3d-v3-payload/part.08 3d-v3-payload/part.09 \
+            > motion-patch.tar.gz.b64
           base64 --decode motion-patch.tar.gz.b64 > motion-patch.tar.gz
           echo 'adc92b0abf583f383cf100dabec3c2224fbf80804aa77555f26df3e7f38176ec  motion-patch.tar.gz' | sha256sum -c -
           tar -xzf motion-patch.tar.gz -C project
+
+      - name: Verify and apply v4 anime model and direction patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          expected = {
+            '00': (5000,'a5c224ca8273a0956fc1877ea076d05e9db23f1fbd0cc436795c71dd16a61d5d'),
+            '01': (5000,'8a1e44c8a2ef4e434237d12a83f9e6769ab0db977fe0c9dcbb99592809d24f98'),
+            '02': (5000,'7234bcdd994bb077d331c386131eb45a64d56df8286c7badf35af7e2652351c2'),
+            '03': (5000,'d7505ea491a97f133b33828fc29643bad6c7caa2d81248cc10ba8e1aed657c15'),
+            '04': (5000,'f69e47606b79bd55d8ddba9b665e0c7c1adc1491f65d4891d3aaa03ed36fc799'),
+            '05': (5000,'8fd18aac2d05561e7fa1aeda61053a1eafd89fe5f2112e03f4f9c1cdb85a90c1'),
+            '06': (5000,'850223225d7efeb3816aa4fc7f1fe909ea8d7488f55d9b2de7dd07219994ff85'),
+            '07': (4908,'0b7718e7313f8a15c3eb19986e0745f6e3dbfe0436b9ad228fc94a7da1d264fd'),
+          }
+          for key,(length,wanted) in expected.items():
+            data=''.join(Path(f'3d-v4-payload/part.{key}').read_text().split())
+            actual=hashlib.sha256(data.encode()).hexdigest()
+            print('v4',key,len(data),actual)
+            assert len(data)==length and actual==wanted
+          PY
+          cat \
+            3d-v4-payload/part.00 3d-v4-payload/part.01 \
+            3d-v4-payload/part.02 3d-v4-payload/part.03 \
+            3d-v4-payload/part.04 3d-v4-payload/part.05 \
+            3d-v4-payload/part.06 3d-v4-payload/part.07 \
+            > anime-v4-patch.tar.gz.b64
+          base64 --decode anime-v4-patch.tar.gz.b64 > anime-v4-patch.tar.gz
+          echo '1f1b62e8f397ffbd6d45034ea595c58b34f4513671285c5f5d48883bb376751b  anime-v4-patch.tar.gz' | sha256sum -c -
+          tar -xzf anime-v4-patch.tar.gz -C project
           python3 - <<'PY'
           from pathlib import Path
           import re
           p=Path('project/app/build.gradle')
           s=p.read_text()
-          s2,n1=re.subn(r'versionCode\s+\d+', 'versionCode 4', s, count=1)
-          s3,n2=re.subn(r'versionName\s+["\'][^"\']+["\']', 'versionName "3.0.0-motion-alpha"', s2, count=1)
+          s2,n1=re.subn(r'versionCode\s+\d+', 'versionCode 5', s, count=1)
+          s3,n2=re.subn(r'versionName\s+["\'][^"\']+["\']', 'versionName "4.0.0-anime-alpha"', s2, count=1)
           assert n1==1 and n2==1, (n1,n2)
           p.write_text(s3)
           PY
@@ -122,12 +166,17 @@ jobs:
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'platform-tools'
 
-      - name: Validate source and animation coverage
+      - name: Validate source, anime models, controls and animation coverage
         shell: bash
         run: |
           set -euo pipefail
           JS=project/app/src/main/assets/www/game3d.js
           node --check "$JS"
+          grep -q 'function addAnimeOutline' "$JS"
+          grep -q "root.userData.modelVersion='anime-v4'" "$JS"
+          grep -q "document.documentElement.dataset.controlVersion = 'direction-fixed-v4'" "$JS"
+          grep -q 'joy.set(-x/max, y/max)' "$JS"
+          grep -q 'velocity.addScaledVector(right,input.x).addScaledVector(forward,input.y)' "$JS"
           grep -q 'function playPetDog' "$JS"
           grep -q 'fishing-bait-cast' "$JS"
           grep -q 'delivery-place-package' "$JS"
@@ -157,6 +206,10 @@ jobs:
           grep -q 'assets/www/vendor/three.module.min.js' apk-files.txt
           grep -q 'assets/www/vendor/three.core.min.js' apk-files.txt
           unzip -p "$APK" assets/www/game3d.js > packaged-game3d.js
+          grep -q 'function addAnimeOutline' packaged-game3d.js
+          grep -q "root.userData.modelVersion='anime-v4'" packaged-game3d.js
+          grep -q 'direction-fixed-v4' packaged-game3d.js
+          grep -q 'joy.set(-x/max, y/max)' packaged-game3d.js
           grep -q 'fishing-bait-cast' packaged-game3d.js
           grep -q 'function playPetDog' packaged-game3d.js
           grep -q 'water-crops' packaged-game3d.js
@@ -165,19 +218,19 @@ jobs:
           $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" > build-info.txt
           cat build-info.txt
           grep -q "package: name='com.xiaoyu.xiaoai.debug'" build-info.txt
-          grep -q "versionCode='4'" build-info.txt
-          grep -q "versionName='3.0.0-motion-alpha-debug'" build-info.txt
+          grep -q "versionCode='5'" build-info.txt
+          grep -q "versionName='4.0.0-anime-alpha-debug'" build-info.txt
           grep -q "launchable-activity: name='com.xiaoyu.xiaoai.MainActivity'" build-info.txt
           mkdir dist
-          cp "$APK" dist/xiaoai-manor-3d-motion-oneplus12-v3.0.0-alpha.apk
+          cp "$APK" dist/xiaoai-manor-3d-anime-oneplus12-v4.0.0-alpha.apk
           cp signing-info.txt build-info.txt dist/
-          sha256sum dist/xiaoai-manor-3d-motion-oneplus12-v3.0.0-alpha.apk > dist/SHA256SUMS.txt
+          sha256sum dist/xiaoai-manor-3d-anime-oneplus12-v4.0.0-alpha.apk > dist/SHA256SUMS.txt
           ls -lh dist
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: xiaoai-manor-3d-motion-oneplus12-v3-alpha
+          name: xiaoai-manor-3d-anime-oneplus12-v4-alpha
           path: dist/
           if-no-files-found: error
           retention-days: 30
