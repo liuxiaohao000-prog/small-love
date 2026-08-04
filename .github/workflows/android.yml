@@ -21,6 +21,34 @@ jobs:
       - name: Checkout build branch
         uses: actions/checkout@v4
 
+      - name: Verify payload chunks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          expected = {
+              '00': (6500, 'b7dd275ba29971c6af05eb5d3222659c62ccb35e31ecb07d030eb8d0592fe104'),
+              '01': (6500, 'dad9cda09283185b45eb31f06b570214ebf3595de009788967f810e9e24fcc87'),
+              '02': (6500, '92c80ca9dab5bdcfd93ad763684103a425aab3ddce7ebddf16d5ea1837a0f6ef'),
+              '03': (6500, 'ad0476dc0d83658abb9e2ce8c189efc0a5b32e663901d0dee5e7ccef676a8670'),
+              '04': (6500, '56d534ebdaa8a471315ff49effa5f94c15a19241977402bcc7dafd1291f18d09'),
+              '05': (6500, '91d1f8496db7f9ccf48b1a2b2b970a31aff96e838b5b1ca9db9cf28e6dfc91ed'),
+              '06': (840, '5386479141851461b11e7d085823ed1cfb39121f6b7484956d89042b3ca7f76f'),
+          }
+          ok = True
+          for suffix, (wanted_len, wanted_hash) in expected.items():
+              raw = Path(f'android-build-payload/part.{suffix}').read_text()
+              compact = ''.join(raw.split())
+              actual_hash = hashlib.sha256(compact.encode()).hexdigest()
+              match = len(compact) == wanted_len and actual_hash == wanted_hash
+              print(f'part.{suffix}: length={len(compact)} sha256={actual_hash} match={match}')
+              ok = ok and match
+          if not ok:
+              raise SystemExit('One or more payload chunks are corrupted')
+          PY
+
       - name: Restore and verify Android project
         shell: bash
         run: |
