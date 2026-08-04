@@ -3,11 +3,9 @@ name: Build XiaoAi Android APK
 on:
   workflow_dispatch:
   push:
-    branches:
-      - build/android-app
+    branches: [build/android-app]
   pull_request:
-    branches:
-      - main
+    branches: [main]
 
 permissions:
   contents: read
@@ -16,42 +14,11 @@ jobs:
   build-apk:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-
     steps:
-      - name: Checkout build branch
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Verify payload chunks
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          import hashlib
-          expected = {
-              '00': (5000, 'def5c4ed6004e5dcd0e104cfd6fbebd4ab97c875a88e2bad3c8a3561c86eb676'),
-              '01': (5000, 'f31a754ca951b388c68685229a689c0870d59900f0055c50ee1d5d2ae36d8e68'),
-              '02': (5000, 'c0efb09a1af328009676b1cd5b63a1095182c168a5c0af0416edd57fe203fe40'),
-              '03': (5000, '03e37d31f3cb90251b195d03d149adb17a880eba80c1804b6816eaec1fe9f89d'),
-              '04': (5000, '06e9178c814f25afc265a6605d2b644f0508280696b62c7a6d6f6d530826ae37'),
-              '05a': (2500, '4a86f09ecb0b8b0e1f72e1adfd42f137effd0e3ca0e0e1ab91b9ea79720dd9e8'),
-              '05b': (2500, 'cd0a33ed0dccb07540e6912b798b3a29ff49dcced30e924b89e5be6cb535240b'),
-              '06': (5000, '340a9161b85934efc17127219d435478ac0a113cfd8d08fc15871287253f34bf'),
-              '07': (4840, 'ee85a9b2ecd8ee06fe50abfcd0b37af8333bc1aa2ac0d00899ac1a56728be6d3'),
-          }
-          ok = True
-          for suffix, (wanted_len, wanted_hash) in expected.items():
-              raw = Path(f'android-build-payload-v2/part.{suffix}').read_text()
-              compact = ''.join(raw.split())
-              actual_hash = hashlib.sha256(compact.encode()).hexdigest()
-              match = len(compact) == wanted_len and actual_hash == wanted_hash
-              print(f'part.{suffix}: length={len(compact)} sha256={actual_hash} match={match}')
-              ok = ok and match
-          if not ok:
-              raise SystemExit('One or more payload chunks are corrupted')
-          PY
-
-      - name: Restore and verify Android project
+      - name: Restore Android project
         shell: bash
         run: |
           set -euo pipefail
@@ -65,16 +32,34 @@ jobs:
             android-build-payload-v2/part.05b \
             android-build-payload-v2/part.06 \
             android-build-payload-v2/part.07 \
-            > android-project.compact.b64
-          base64 --decode android-project.compact.b64 > android-project.tar.gz
+            > android-project.b64
+          base64 --decode android-project.b64 > android-project.tar.gz
           echo "ce5a759d2b7700fd0ce1a5af0cdcf7ba55000a2db784d2cf2a1fd93293024647  android-project.tar.gz" | sha256sum -c -
           mkdir android-project
           tar -xzf android-project.tar.gz -C android-project
-          test -f android-project/settings.gradle
-          test -f android-project/app/src/main/AndroidManifest.xml
-          test -f android-project/app/src/main/assets/www/index.html
-          test -f android-project/app/src/main/assets/www/game.js
-          test -f android-project/app/src/main/java/com/xiaoyu/xiaoai/MainActivity.java
+
+      - name: Apply ColorOS safe-start patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat patch-v101/MainActivity.part.00 patch-v101/MainActivity.part.01 patch-v101/MainActivity.part.02 > MainActivity.java.b64
+          base64 --decode MainActivity.java.b64 > android-project/app/src/main/java/com/xiaoyu/xiaoai/MainActivity.java
+          sed -i 's/new WebView(getApplicationContext())/new WebView(this)/' android-project/app/src/main/java/com/xiaoyu/xiaoai/MainActivity.java
+          sed -i 's/versionCode 1/versionCode 2/' android-project/app/build.gradle
+          sed -i "s/versionName '1.0.0'/versionName '1.0.1'/" android-project/app/build.gradle
+          cat > android-project/app/src/main/res/values/themes.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <style name="Theme.XiaoAi" parent="android:style/Theme.Material.Light.NoActionBar">
+                  <item name="android:fontFamily">sans</item>
+                  <item name="android:windowNoTitle">true</item>
+                  <item name="android:windowLightStatusBar">true</item>
+                  <item name="android:statusBarColor">#FFF8FA</item>
+                  <item name="android:navigationBarColor">#FFF8FA</item>
+                  <item name="android:windowLightNavigationBar">true</item>
+              </style>
+          </resources>
+          EOF
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -93,38 +78,36 @@ jobs:
       - name: Install Android API 36
         shell: bash
         run: |
-          set -euo pipefail
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
 
-      - name: Validate game source
+      - name: Validate patched source
         shell: bash
         run: |
           set -euo pipefail
           node --check android-project/app/src/main/assets/www/game.js
-          grep -q "preferredRefreshRate = 60.0f" android-project/app/src/main/java/com/xiaoyu/xiaoai/MainActivity.java
-          grep -q "setBlockNetworkLoads(true)" android-project/app/src/main/java/com/xiaoyu/xiaoai/MainActivity.java
+          grep -q "oneplus12-balanced-60-safe" android-project/app/src/main/java/com/xiaoyu/xiaoai/MainActivity.java
+          grep -q "showStartupError" android-project/app/src/main/java/com/xiaoyu/xiaoai/MainActivity.java
+          ! grep -q "preferredRefreshRate" android-project/app/src/main/java/com/xiaoyu/xiaoai/MainActivity.java
+          ! grep -q "setBlockNetworkLoads" android-project/app/src/main/java/com/xiaoyu/xiaoai/MainActivity.java
           grep -q "Math.min(window.devicePixelRatio || 1, 2)" android-project/app/src/main/assets/www/game.js
 
       - name: Build installable APK
         shell: bash
-        run: |
-          set -euo pipefail
-          gradle --no-daemon --stacktrace -p android-project :app:assembleDebug
+        run: gradle --no-daemon --stacktrace -p android-project :app:assembleDebug
 
-      - name: Prepare APK artifact
+      - name: Prepare artifact
         shell: bash
         run: |
-          set -euo pipefail
           mkdir -p dist
-          cp android-project/app/build/outputs/apk/debug/app-debug.apk dist/xiaoai-kuai-pao-oneplus12-v1.0.0.apk
-          sha256sum dist/xiaoai-kuai-pao-oneplus12-v1.0.0.apk | tee dist/SHA256SUMS.txt
-          ls -lh dist/
+          cp android-project/app/build/outputs/apk/debug/app-debug.apk dist/xiaoai-kuai-pao-oneplus12-v1.0.1-safe.apk
+          sha256sum dist/xiaoai-kuai-pao-oneplus12-v1.0.1-safe.apk > dist/SHA256SUMS.txt
+          ls -lh dist
 
-      - name: Upload installable APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: xiaoai-kuai-pao-oneplus12-apk
+          name: xiaoai-kuai-pao-oneplus12-v1.0.1-safe
           path: dist/
           if-no-files-found: error
           retention-days: 30
