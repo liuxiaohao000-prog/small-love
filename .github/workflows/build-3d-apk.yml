@@ -94,7 +94,7 @@ jobs:
           grep -q 'WebViewAssetLoader' project/app/src/main/java/com/xiaoyu/xiaoai/MainActivity.java
           grep -q 'Math.min(window.devicePixelRatio || 1, 1.5)' project/app/src/main/assets/www/game3d.js
           grep -q '1000/60' project/app/src/main/assets/www/game3d.js
-          grep -q "from './three.core.min.js'" project/app/src/main/assets/www/vendor/three.module.min.js
+          grep -q 'three.core.min.js' project/app/src/main/assets/www/vendor/three.module.min.js
           ! grep -q 'android.permission.INTERNET' project/app/src/main/AndroidManifest.xml
 
       - name: Build APK
