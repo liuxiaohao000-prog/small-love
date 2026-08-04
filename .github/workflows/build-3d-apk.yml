@@ -81,7 +81,7 @@ jobs:
           import re
           p=Path('project/app/build.gradle')
           s=p.read_text()
-          s2,n1=re.subn(r'versionCode\s+\d+', 'versionCode 3', s, count=1)
+          s2,n1=re.subn(r'versionCode\s+\d+', 'versionCode 4', s, count=1)
           s3,n2=re.subn(r'versionName\s+["\'][^"\']+["\']', 'versionName "3.0.0-motion-alpha"', s2, count=1)
           assert n1==1 and n2==1, (n1,n2)
           p.write_text(s3)
@@ -163,9 +163,10 @@ jobs:
           grep -q 'cafe-stir-serve' packaged-game3d.js
           $ANDROID_HOME/build-tools/36.0.0/apksigner verify --verbose --print-certs "$APK" > signing-info.txt
           $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" > build-info.txt
+          cat build-info.txt
           grep -q "package: name='com.xiaoyu.xiaoai.debug'" build-info.txt
-          grep -q "versionCode='3'" build-info.txt
-          grep -q "versionName='3.0.0-motion-alpha'" build-info.txt
+          grep -q "versionCode='4'" build-info.txt
+          grep -q "versionName='3.0.0-motion-alpha-debug'" build-info.txt
           grep -q "launchable-activity: name='com.xiaoyu.xiaoai.MainActivity'" build-info.txt
           mkdir dist
           cp "$APK" dist/xiaoai-manor-3d-motion-oneplus12-v3.0.0-alpha.apk
