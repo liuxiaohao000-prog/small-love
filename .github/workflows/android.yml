@@ -29,17 +29,18 @@ jobs:
           from pathlib import Path
           import hashlib
           expected = {
-              '00': (6500, 'b7dd275ba29971c6af05eb5d3222659c62ccb35e31ecb07d030eb8d0592fe104'),
-              '01': (6500, 'dad9cda09283185b45eb31f06b570214ebf3595de009788967f810e9e24fcc87'),
-              '02': (6500, '92c80ca9dab5bdcfd93ad763684103a425aab3ddce7ebddf16d5ea1837a0f6ef'),
-              '03': (6500, 'ad0476dc0d83658abb9e2ce8c189efc0a5b32e663901d0dee5e7ccef676a8670'),
-              '04': (6500, '56d534ebdaa8a471315ff49effa5f94c15a19241977402bcc7dafd1291f18d09'),
-              '05': (6500, '91d1f8496db7f9ccf48b1a2b2b970a31aff96e838b5b1ca9db9cf28e6dfc91ed'),
-              '06': (840, '5386479141851461b11e7d085823ed1cfb39121f6b7484956d89042b3ca7f76f'),
+              '00': (5000, 'def5c4ed6004e5dcd0e104cfd6fbebd4ab97c875a88e2bad3c8a3561c86eb676'),
+              '01': (5000, 'f31a754ca951b388c68685229a689c0870d59900f0055c50ee1d5d2ae36d8e68'),
+              '02': (5000, 'c0efb09a1af328009676b1cd5b63a1095182c168a5c0af0416edd57fe203fe40'),
+              '03': (5000, '03e37d31f3cb90251b195d03d149adb17a880eba80c1804b6816eaec1fe9f89d'),
+              '04': (5000, '06e9178c814f25afc265a6605d2b644f0508280696b62c7a6d6f6d530826ae37'),
+              '05': (5000, '89fab5a6ef36b9aa85bbf60ba65bf12e1edce07720d0c20a4f82079959aa0495'),
+              '06': (5000, '340a9161b85934efc17127219d435478ac0a113cfd8d08fc15871287253f34bf'),
+              '07': (4840, 'ee85a9b2ecd8ee06fe50abfcd0b37af8333bc1aa2ac0d00899ac1a56728be6d3'),
           }
           ok = True
           for suffix, (wanted_len, wanted_hash) in expected.items():
-              raw = Path(f'android-build-payload/part.{suffix}').read_text()
+              raw = Path(f'android-build-payload-v2/part.{suffix}').read_text()
               compact = ''.join(raw.split())
               actual_hash = hashlib.sha256(compact.encode()).hexdigest()
               match = len(compact) == wanted_len and actual_hash == wanted_hash
@@ -53,9 +54,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat android-build-payload/part.* \
-            | tr -cd 'A-Za-z0-9+/=' \
-            > android-project.compact.b64
+          cat android-build-payload-v2/part.* > android-project.compact.b64
           base64 --decode android-project.compact.b64 > android-project.tar.gz
           echo "ce5a759d2b7700fd0ce1a5af0cdcf7ba55000a2db784d2cf2a1fd93293024647  android-project.tar.gz" | sha256sum -c -
           mkdir android-project
