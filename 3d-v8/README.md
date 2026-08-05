@@ -1,6 +1,6 @@
 # v8 国漫角色重做版
 
-v8 不再把程序拼装角色作为首选。主角优先加载标准 VRM 动漫角色，保留闭合高密度 GLB 作为加载失败时的离线回退；小爱继续使用带完整动作片段的闭合 GLB。
+v8 不再把程序拼装角色作为首选。主角优先加载标准 VRM 动漫角色，保留闭合高密度 GLB 作为加载失败时的离线回退；小爱使用带完整四足骨骼和动作片段的离线 GLB。
 
 ## 已实现
 
@@ -10,23 +10,38 @@ v8 不再把程序拼装角色作为首选。主角优先加载标准 VRM 动漫
 - Walk/Run 的骨盆移重、脊柱反摆、膝盖缓冲和脚掌滚动；
 - Pet、摄影、钓鱼、咖啡、农田和快递任务动作映射；
 - 透明头发深度排序、眼线/睫毛渲染顺序和黑色反向壳移除；
-- 小爱 Walk/Run/Happy/Sit 动作，以及耳朵、尾巴、下颌和舌头表演；
+- 小爱 Walk/Run/Happy/Sit 动作；
 - OnePlus 12 目标运行内存约 350–700MB，上限 1000MB。
+
+## v8.2 比熊犬小爱
+
+v8.2 保留 v8.1 稳定的 46 关节四足骨架和 12 组动画，将柴犬可见网格重塑为比熊犬：
+
+- 圆形头冠和更短的口鼻；
+- 下垂耳代替柴犬竖耳；
+- 更矮、更宽、更紧凑的身体比例；
+- 蓬松短腿和向背部卷起的尾巴；
+- 暖奶白、柔白、黑鼻黑眼与粉色耳内材质；
+- 可随骨骼运动的卷毛外壳和数百个低多边形毛团；
+- 游戏内目标高度从 1.36 调整为 1.18；
+- 加载顺序：v8.2 比熊犬 → v8.1 柴犬 → 旧 GLB → 程序化兜底。
 
 ## 目录
 
-- `V8_REDESIGN_PLAN.md`：完整改造与验收方案；
-- `V8_ART_REVIEW.md`：美术、动作和穿模审查记录；
-- `VRMRuntime.js`：骨骼、表情、材质和次级动作运行时；
-- `inspect_vrm.py`：VRM 元数据与结构检查；
-- `patches/*.gz.b64`：相对 v7 的游戏与 UI 源码补丁；
-- `apply-v8-assets.sh`：将补丁、VRM 和 Three.js 官方加载器应用到解包工程；
-- `RELEASE_MANIFEST.md`：v8.0.0 APK 的摘要和验证结果。
+- `V8_REDESIGN_PLAN.md`：完整人物改造与验收方案；
+- `V8_ART_REVIEW.md`：人物美术、动作和穿模审查记录；
+- `V81_MOTION_DOG_REVIEW.md`：v8.1 人物动作和动画犬审查；
+- `V82_BICHON_REVIEW.md`：比熊犬外形、卷毛和骨骼审查；
+- `VRMRuntime.js`：人物骨骼、表情、材质和次级动作运行时；
+- `build_v82_bichon.py.gz.b64`：比熊犬 GLB 可复现生成器；
+- `apply-v82-bichon.sh`：把比熊模型和运行时补丁应用到 v8.1 解包工程；
+- `patches/*.gz.b64`：游戏与 UI 源码补丁；
+- `RELEASE_V8_2_MANIFEST.md`：v8.2 APK 摘要、模型统计和验证结果。
 
-## 资产与运行时流水线
+## 资产与许可证
 
-GitHub Actions 会分别检查明确的 CC0 VRM 候选模型，并下载、修补 Three.js r184 官方 `GLTFLoader`、`BufferGeometryUtils` 和 `SkeletonUtils`，形成完全离线的 WebView 运行时。没有把许可证含糊的模型纳入发行包。
+人物采用明确允许改造与再分发的 CC0 VRoid 样例。小爱基础骨架和动画来自 Quaternius Ultimate Animated Animal Pack，采用 Creative Commons CC0 1.0 Universal。仓库保存生成器、补丁和许可证记录，不提交私有签名密钥。
 
 ## 当前交付
 
-发行 APK 使用与 v5–v7 相同的签名证书，并经过 ZIP、glTF/VRM 结构、JavaScript 和 APK Signature Scheme v2 验证。PR 保持草稿状态，等待 OnePlus 12 真机截图完成最终视觉验收。
+v8.2 APK 已通过 ZIP、JavaScript、GLB 结构、四字节对齐和 APK Signature Scheme v2 内容摘要验证。PR 保持草稿状态，等待 OnePlus 12 真机确认比熊犬正面圆头、侧面下垂耳、背面卷尾以及动画中的毛发跟随表现。
