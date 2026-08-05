@@ -1,0 +1,50 @@
+name: Inspect v8 CC0 VRM candidates
+
+on:
+  pull_request:
+    branches: [build/3d-standard-v5]
+    paths:
+      - '3d-v8/**'
+      - '.github/workflows/inspect-v8-cc0-vrm.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-cc0-vrm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download CC0 VRoid candidates
+        run: |
+          set -euxo pipefail
+          mkdir -p build/v8-cc0
+          curl --fail --location --retry 3 \
+            'https://opengameart.org/sites/default/files/sendagaya_shino.zip' \
+            --output build/v8-cc0/sendagaya_shino.zip
+          curl --fail --location --retry 3 \
+            'https://opengameart.org/sites/default/files/avatarsample_e.zip' \
+            --output build/v8-cc0/avatarsample_e.zip
+          unzip -q build/v8-cc0/sendagaya_shino.zip -d build/v8-cc0/shino
+          unzip -q build/v8-cc0/avatarsample_e.zip -d build/v8-cc0/avatar_e
+          find build/v8-cc0 -type f -maxdepth 4 -print
+      - name: Inspect all VRM files
+        run: |
+          set -euxo pipefail
+          : > build/v8-cc0/combined-report.txt
+          while IFS= read -r file; do
+            safe=$(basename "$file" | tr ' /' '__')
+            python3 3d-v8/inspect_vrm.py "$file" > "build/v8-cc0/${safe}.json"
+            cat "build/v8-cc0/${safe}.json" >> build/v8-cc0/combined-report.txt
+          done < <(find build/v8-cc0 -type f \( -iname '*.vrm' -o -iname '*.glb' \))
+      - name: Remove source archives
+        run: rm -f build/v8-cc0/*.zip
+      - name: Upload inspected CC0 candidates
+        uses: actions/upload-artifact@v4
+        with:
+          name: v8-cc0-vrm-candidates
+          path: build/v8-cc0/
+          if-no-files-found: error
+          retention-days: 7

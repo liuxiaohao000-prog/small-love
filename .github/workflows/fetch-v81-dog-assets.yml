@@ -1,0 +1,45 @@
+name: Fetch v8.1 dog candidates
+
+on:
+  pull_request:
+    branches: [build/3d-standard-v5]
+    paths:
+      - '.github/workflows/fetch-v81-dog-assets.yml'
+      - '3d-v8/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fetch-dogs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download CC0 Quaternius animal pack
+        run: |
+          set -euxo pipefail
+          mkdir -p build/v81-dogs
+          curl --fail --location --retry 3 \
+            'https://opengameart.org/sites/default/files/Animal%20Pack%20Vol.2%20by%20%40Quaternius.zip' \
+            --output build/v81-dogs/quaternius-animal-pack.zip
+          unzip -q build/v81-dogs/quaternius-animal-pack.zip -d build/v81-dogs/unpacked
+          find build/v81-dogs/unpacked -type f -maxdepth 5 -print | sort
+      - name: Record CC0 source
+        run: |
+          cat > build/v81-dogs/LICENSE_SOURCE.txt <<'EOF'
+          Source: Animated Animales Low Poly by Quaternius
+          Source page: https://opengameart.org/content/animated-animales-low-poly
+          License: Creative Commons CC0 1.0 Universal
+          License URL: https://creativecommons.org/publicdomain/zero/1.0/
+          EOF
+      - name: Remove downloaded archive
+        run: rm -f build/v81-dogs/quaternius-animal-pack.zip
+      - name: Upload candidates
+        uses: actions/upload-artifact@v4
+        with:
+          name: v81-dog-candidates
+          path: build/v81-dogs/
+          if-no-files-found: error
+          retention-days: 7

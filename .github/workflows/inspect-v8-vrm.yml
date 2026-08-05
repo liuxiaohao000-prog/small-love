@@ -1,0 +1,37 @@
+name: Inspect v8 VRM candidate
+
+on:
+  pull_request:
+    branches: [build/3d-standard-v5]
+    paths:
+      - '3d-v8/**'
+      - '.github/workflows/inspect-v8-vrm.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-vrm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download VRoid female candidate
+        run: |
+          mkdir -p build/v8-vrm
+          curl --fail --location --retry 3 \
+            'https://github.com/madjin/vrm-samples/raw/refs/heads/master/vroid/fem_vroid.vrm' \
+            --output build/v8-vrm/xiaoyu-candidate.vrm
+      - name: Inspect VRM metadata and rig
+        run: |
+          python3 3d-v8/inspect_vrm.py build/v8-vrm/xiaoyu-candidate.vrm \
+            > build/v8-vrm/vrm-report.json
+          cat build/v8-vrm/vrm-report.json
+      - name: Upload inspected candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: v8-vrm-candidate
+          path: build/v8-vrm/
+          if-no-files-found: error
+          retention-days: 7

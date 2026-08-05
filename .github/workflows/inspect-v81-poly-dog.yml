@@ -1,0 +1,56 @@
+name: Inspect v8.1 Poly Pizza dog
+
+on:
+  pull_request:
+    branches: [build/3d-standard-v5]
+    paths:
+      - '.github/workflows/inspect-v81-poly-dog.yml'
+      - '3d-v8/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-dog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe Poly Pizza model endpoint and page
+        run: |
+          set -euxo pipefail
+          mkdir -p build/v81-poly-dog
+          curl --location --retry 3 --silent --show-error \
+            'https://poly.pizza/m/2kUk0QqpCg' \
+            --output build/v81-poly-dog/page.html
+          curl --location --retry 3 --silent --show-error \
+            'https://api.poly.pizza/v1/model/2kUk0QqpCg' \
+            --output build/v81-poly-dog/model.json || true
+          grep -Eo 'https?://[^"[:space:]]+\.(glb|gltf|zip)(\?[^"[:space:]]*)?' \
+            build/v81-poly-dog/page.html build/v81-poly-dog/model.json \
+            > build/v81-poly-dog/candidate-urls.txt || true
+          cat build/v81-poly-dog/model.json || true
+          cat build/v81-poly-dog/candidate-urls.txt || true
+      - name: Download GLB when URL is available
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          import json, pathlib, subprocess
+          root=pathlib.Path('build/v81-poly-dog')
+          p=root/'model.json'
+          try:
+              data=json.loads(p.read_text())
+          except Exception:
+              data={}
+          url=data.get('Download') or data.get('download')
+          if url:
+              subprocess.run(['curl','--fail','--location','--retry','3',url,'--output',str(root/'dog.glb')],check=True)
+          PY
+      - name: Upload probe
+        uses: actions/upload-artifact@v4
+        with:
+          name: v81-poly-dog-probe
+          path: build/v81-poly-dog/
+          if-no-files-found: error
+          retention-days: 7
