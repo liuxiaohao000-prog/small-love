@@ -1,0 +1,48 @@
+name: Bundle v8 Three runtime
+
+on:
+  pull_request:
+    branches: [build/3d-standard-v5]
+    paths:
+      - '.github/workflows/bundle-v8-three-runtime.yml'
+      - '3d-v8/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bundle-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Three r184 official loaders
+        run: |
+          set -euxo pipefail
+          mkdir -p build/v8-three
+          base='https://raw.githubusercontent.com/mrdoob/three.js/r184/examples/jsm'
+          curl --fail --location --retry 3 "$base/loaders/GLTFLoader.js" -o build/v8-three/GLTFLoader.js
+          curl --fail --location --retry 3 "$base/utils/BufferGeometryUtils.js" -o build/v8-three/BufferGeometryUtils.js
+          curl --fail --location --retry 3 "$base/utils/SkeletonUtils.js" -o build/v8-three/SkeletonUtils.js
+      - name: Patch imports for offline WebView
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('build/v8-three')
+          for name in ['GLTFLoader.js','BufferGeometryUtils.js','SkeletonUtils.js']:
+              p=root/name
+              s=p.read_text()
+              s=s.replace("from 'three';", "from './three.module.min.js';")
+              s=s.replace("from '../utils/BufferGeometryUtils.js';", "from './BufferGeometryUtils.js';")
+              s=s.replace("from '../utils/SkeletonUtils.js';", "from './SkeletonUtils.js';")
+              p.write_text(s)
+          PY
+          grep -R "from 'three'\|../utils" build/v8-three && exit 1 || true
+      - name: Upload runtime bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: v8-three-runtime
+          path: build/v8-three/
+          if-no-files-found: error
+          retention-days: 7
