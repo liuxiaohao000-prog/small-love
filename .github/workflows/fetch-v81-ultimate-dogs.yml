@@ -1,0 +1,53 @@
+name: Fetch v8.1 ultimate animated dogs
+
+on:
+  pull_request:
+    branches: [build/3d-standard-v5]
+    paths:
+      - '.github/workflows/fetch-v81-ultimate-dogs.yml'
+      - '3d-v8/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fetch-ultimate-dogs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Google Drive downloader
+        run: python3 -m pip install --user --disable-pip-version-check gdown
+      - name: Download public CC0 animal folder
+        run: |
+          set -euxo pipefail
+          mkdir -p build/v81-ultimate-dogs
+          python3 -m gdown --folder \
+            'https://drive.google.com/drive/folders/1uJ3N5HfB7jKTseJUNQr3N4YaN0UuEtHk' \
+            --output build/v81-ultimate-dogs
+          find build/v81-ultimate-dogs -type f -maxdepth 8 -print | sort
+      - name: Keep canine files and licence record
+        run: |
+          set -euxo pipefail
+          mkdir -p build/v81-selected
+          find build/v81-ultimate-dogs -type f | while read -r f; do
+            name=$(basename "$f")
+            case "${name,,}" in
+              *husky*|*shiba*|*dog*) cp "$f" build/v81-selected/ ;;
+            esac
+          done
+          cat > build/v81-selected/LICENSE_SOURCE.txt <<'EOF'
+          Source: Ultimate Animated Animal Pack by Quaternius
+          Source page: https://quaternius.com/packs/ultimateanimatedanimals.html
+          License: Creative Commons CC0 1.0 Universal
+          License URL: https://creativecommons.org/publicdomain/zero/1.0/
+          EOF
+          find build/v81-selected -type f -printf '%f %s bytes\n' | sort
+      - name: Upload selected canine assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: v81-ultimate-dogs
+          path: build/v81-selected/
+          if-no-files-found: error
+          retention-days: 7
