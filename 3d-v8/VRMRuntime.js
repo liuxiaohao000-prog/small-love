@@ -137,7 +137,9 @@ export function upgradeCustomMaterialExtras(gltf) {
       const definition = doc.materials && doc.materials[association.materials];
       const extras = definition && definition.extras;
       if (!extras) return;
-      if (extras.texture && !material.map) material.map = texture(extras.texture, true, extras.repeat);
+      if (extras.texture && !material.map) {
+        material.map = texture(extras.texture, true, extras.repeat);
+      }
       if (extras.normalTexture && !material.normalMap) {
         material.normalMap = texture(extras.normalTexture, false, extras.repeat);
         const strength = Math.min(0.24, extras.normalScale || 0.12);
@@ -239,40 +241,131 @@ function resetPose(runtime) {
   runtime.secondary.forEach(object => restore(runtime, object));
 }
 
-function syncHumanPose(runtime, legacy, elapsed, intent, moveIntensity, moving) {
+function clampAngle(value, limit) {
+  return THREE.MathUtils.clamp(Number(value) || 0, -limit, limit);
+}
+
+function actionEnvelope(progress) {
+  const p = THREE.MathUtils.clamp(Number(progress) || 0, 0, 1);
+  const enter = THREE.MathUtils.smoothstep(p, 0.04, 0.22);
+  const leave = 1 - THREE.MathUtils.smoothstep(p, 0.80, 0.98);
+  return Math.min(enter, leave);
+}
+
+function setNaturalArms(runtime, leftSwing = 0, rightSwing = 0, leftBend = 0.10, rightBend = 0.10) {
+  // The VRoid source is a T-pose. Positive Z lowers the left arm; negative Z
+  // lowers the right arm. v8.0 used the opposite signs and raised both hands.
+  const drop = 1.36;
+  setDelta(runtime, 'leftShoulder', 0, 0, -0.035);
+  setDelta(runtime, 'rightShoulder', 0, 0, 0.035);
+  setDelta(runtime, 'leftUpperArm', 0, leftSwing, drop);
+  setDelta(runtime, 'rightUpperArm', 0, rightSwing, -drop);
+  setDelta(runtime, 'leftLowerArm', 0, Math.abs(leftBend), -0.025);
+  setDelta(runtime, 'rightLowerArm', 0, -Math.abs(rightBend), 0.025);
+  setDelta(runtime, 'leftHand', 0, 0, 0.025);
+  setDelta(runtime, 'rightHand', 0, 0, -0.025);
+}
+
+function poseSafeInteraction(runtime, token, progress, elapsed) {
+  const weight = actionEnvelope(progress);
+  if (!(weight > 0.001)) return false;
+  const wave = Math.sin(elapsed * 4.4) * weight;
+
+  if (token.includes('pet')) {
+    setDelta(runtime, 'spine', -0.14 * weight, 0, 0);
+    setDelta(runtime, 'chest', -0.18 * weight, 0.025 * weight, 0);
+    setDelta(runtime, 'upperChest', -0.08 * weight, 0.015 * weight, 0);
+    setDelta(runtime, 'neck', 0.08 * weight, -0.05 * weight, 0);
+    setDelta(runtime, 'head', 0.16 * weight, -0.08 * weight, 0.035 * weight);
+    setDelta(runtime, 'leftUpperLeg', -0.18 * weight, 0, 0);
+    setDelta(runtime, 'rightUpperLeg', -0.18 * weight, 0, 0);
+    setDelta(runtime, 'leftLowerLeg', 0.32 * weight, 0, 0);
+    setDelta(runtime, 'rightLowerLeg', 0.32 * weight, 0, 0);
+    setNaturalArms(runtime, -0.12 * weight, 0.78 * weight + wave * 0.035, 0.18, 0.58);
+    setDelta(runtime, 'rightUpperArm', 0.05 * weight, 0.78 * weight + wave * 0.035, -1.20);
+    setDelta(runtime, 'rightLowerArm', 0.08 * weight, -0.60 * weight - wave * 0.05, 0.04);
+    setDelta(runtime, 'rightHand', -0.10 * weight, 0.06 * wave, -0.08 * weight);
+    setDelta(runtime, 'leftUpperArm', 0, -0.08 * weight, 1.28);
+    setDelta(runtime, 'leftLowerArm', 0, 0.20 * weight, -0.02);
+    return true;
+  }
+
+  if (token.includes('photo')) {
+    setDelta(runtime, 'spine', -0.035 * weight, 0, 0);
+    setDelta(runtime, 'chest', -0.03 * weight, 0.04 * weight, 0);
+    setNaturalArms(runtime, -0.60 * weight, 0.60 * weight, 0.72, 0.72);
+    setDelta(runtime, 'leftUpperArm', 0.08 * weight, -0.60 * weight, 1.02);
+    setDelta(runtime, 'rightUpperArm', 0.08 * weight, 0.60 * weight, -1.02);
+    setDelta(runtime, 'leftLowerArm', 0, 0.72 * weight, 0);
+    setDelta(runtime, 'rightLowerArm', 0, -0.72 * weight, 0);
+    return true;
+  }
+
+  if (token.includes('fishing')) {
+    setDelta(runtime, 'spine', -0.06 * weight, 0.03 * weight, 0);
+    setNaturalArms(runtime, -0.38 * weight, 0.42 * weight, 0.48, 0.56);
+    return true;
+  }
+
+  if (token.includes('coffee') || token.includes('cafe')) {
+    setDelta(runtime, 'chest', -0.025 * weight, 0.035 * weight, 0);
+    setNaturalArms(runtime, -0.22 * weight, 0.40 * weight, 0.24, 0.46);
+    return true;
+  }
+
+  if (token.includes('farm') || token.includes('water') || token.includes('dig')) {
+    setDelta(runtime, 'spine', -0.09 * weight, 0, 0);
+    setNaturalArms(runtime, -0.30 * weight, 0.52 * weight, 0.32, 0.52);
+    return true;
+  }
+
+  if (token.includes('delivery')) {
+    setNaturalArms(runtime, -0.20 * weight, 0.20 * weight, 0.38, 0.38);
+    setDelta(runtime, 'leftUpperArm', 0, -0.20 * weight, 1.20);
+    setDelta(runtime, 'rightUpperArm', 0, 0.20 * weight, -1.20);
+    return true;
+  }
+  return false;
+}
+
+function syncHumanPose(runtime, legacy, elapsed, intent, moveIntensity, moving, actorActionName, actorActionProgress) {
   if (!legacy) return;
   const intensity = THREE.MathUtils.clamp(moveIntensity || 0, 0, 1);
   const run = canonical(intent).includes('run');
-  const cycle = elapsed * (run ? 11.4 : 8.6);
-  const sway = moving ? Math.sin(cycle) * 0.035 * intensity : Math.sin(elapsed * 1.1) * 0.008;
-  const counter = moving ? Math.sin(cycle) * 0.07 * intensity : 0;
+  const cycle = elapsed * (run ? 10.8 : 7.6);
+  const stride = moving ? Math.sin(cycle) * intensity : 0;
+  const step = moving ? Math.abs(Math.sin(cycle)) * intensity : 0;
+  const breathing = Math.sin(elapsed * 1.35);
+  const sway = moving ? Math.sin(cycle) * 0.024 * intensity : Math.sin(elapsed * 0.85) * 0.006;
+  const token = canonical(`${intent || ''} ${actorActionName || ''}`);
 
-  setDelta(runtime, 'hips', legacy.hips.rotation.x, legacy.hips.rotation.y, legacy.hips.rotation.z + sway);
-  setDelta(runtime, 'spine', legacy.torso.rotation.x, legacy.torso.rotation.y - counter * 0.35, legacy.torso.rotation.z - sway * 0.5);
-  setDelta(runtime, 'chest', legacy.chest.rotation.x, legacy.chest.rotation.y + counter * 0.58, legacy.chest.rotation.z + sway * 0.25);
-  setDelta(runtime, 'upperChest', legacy.chest.rotation.x * 0.28, legacy.chest.rotation.y * 0.42, legacy.chest.rotation.z * 0.34);
-  setDelta(runtime, 'neck', legacy.head.rotation.x * 0.25, legacy.head.rotation.y * 0.28, legacy.head.rotation.z * 0.18);
-  setDelta(runtime, 'head', legacy.head.rotation.x - (moving ? Math.abs(Math.sin(cycle)) * 0.018 * intensity : 0), legacy.head.rotation.y, legacy.head.rotation.z - sway * 0.24);
+  // Do not reuse the old procedural model's shoulder angles. Its bone axes are
+  // incompatible with this VRM and were the source of the twisted interactions.
+  setDelta(runtime, 'hips', clampAngle(legacy.hips.rotation.x, 0.10), clampAngle(legacy.hips.rotation.y, 0.12), clampAngle(legacy.hips.rotation.z, 0.08) + sway);
+  setDelta(runtime, 'spine', clampAngle(legacy.torso.rotation.x, 0.12) + breathing * 0.006, clampAngle(legacy.torso.rotation.y, 0.10), clampAngle(legacy.torso.rotation.z, 0.06) - sway * 0.45);
+  setDelta(runtime, 'chest', clampAngle(legacy.chest.rotation.x, 0.10) + breathing * 0.008, clampAngle(legacy.chest.rotation.y, 0.10), clampAngle(legacy.chest.rotation.z, 0.06) + sway * 0.22);
+  setDelta(runtime, 'upperChest', breathing * 0.006, clampAngle(legacy.chest.rotation.y, 0.06), clampAngle(legacy.chest.rotation.z, 0.035));
+  setDelta(runtime, 'neck', clampAngle(legacy.head.rotation.x, 0.12) * 0.35, clampAngle(legacy.head.rotation.y, 0.16) * 0.35, clampAngle(legacy.head.rotation.z, 0.10) * 0.28);
+  setDelta(runtime, 'head', clampAngle(legacy.head.rotation.x, 0.20) - step * 0.010, clampAngle(legacy.head.rotation.y, 0.24), clampAngle(legacy.head.rotation.z, 0.14) - sway * 0.18);
 
-  const armDrop = 1.24;
-  setDelta(runtime, 'leftShoulder', 0, 0, legacy.leftShoulder.rotation.z * 0.22);
-  setDelta(runtime, 'rightShoulder', 0, 0, legacy.rightShoulder.rotation.z * 0.22);
-  setDelta(runtime, 'leftUpperArm', legacy.leftShoulder.rotation.y * 0.35, legacy.leftShoulder.rotation.x * 0.94, -armDrop + legacy.leftShoulder.rotation.z * 0.30);
-  setDelta(runtime, 'rightUpperArm', legacy.rightShoulder.rotation.y * 0.35, -legacy.rightShoulder.rotation.x * 0.94, armDrop + legacy.rightShoulder.rotation.z * 0.30);
-  setDelta(runtime, 'leftLowerArm', legacy.leftElbow.rotation.z * 0.35, legacy.leftElbow.rotation.x * 0.92, -0.08);
-  setDelta(runtime, 'rightLowerArm', legacy.rightElbow.rotation.z * 0.35, -legacy.rightElbow.rotation.x * 0.92, 0.08);
-  setDelta(runtime, 'leftHand', legacy.leftWrist.rotation.x, legacy.leftWrist.rotation.y, legacy.leftWrist.rotation.z);
-  setDelta(runtime, 'rightHand', legacy.rightWrist.rotation.x, -legacy.rightWrist.rotation.y, -legacy.rightWrist.rotation.z);
+  if (!poseSafeInteraction(runtime, token, actorActionProgress, elapsed)) {
+    const armSwing = moving ? stride * (run ? 0.46 : 0.30) : 0;
+    const elbow = moving ? 0.13 + step * (run ? 0.22 : 0.10) : 0.10;
+    setNaturalArms(runtime, armSwing, armSwing, elbow, elbow);
 
-  setDelta(runtime, 'leftUpperLeg', legacy.leftHip.rotation.x, legacy.leftHip.rotation.y, legacy.leftHip.rotation.z + sway * 0.16);
-  setDelta(runtime, 'rightUpperLeg', legacy.rightHip.rotation.x, legacy.rightHip.rotation.y, legacy.rightHip.rotation.z + sway * 0.16);
-  setDelta(runtime, 'leftLowerLeg', legacy.leftKnee.rotation.x, legacy.leftKnee.rotation.y, legacy.leftKnee.rotation.z);
-  setDelta(runtime, 'rightLowerLeg', legacy.rightKnee.rotation.x, legacy.rightKnee.rotation.y, legacy.rightKnee.rotation.z);
-  setDelta(runtime, 'leftFoot', legacy.leftAnkle.rotation.x - Math.max(0, Math.sin(cycle)) * 0.10 * intensity, legacy.leftAnkle.rotation.y, legacy.leftAnkle.rotation.z);
-  setDelta(runtime, 'rightFoot', legacy.rightAnkle.rotation.x - Math.max(0, -Math.sin(cycle)) * 0.10 * intensity, legacy.rightAnkle.rotation.y, legacy.rightAnkle.rotation.z);
+    const legSwing = moving ? stride * (run ? 0.62 : 0.42) : 0;
+    const kneeL = moving ? Math.max(0, -stride) * (run ? 0.72 : 0.46) : 0;
+    const kneeR = moving ? Math.max(0, stride) * (run ? 0.72 : 0.46) : 0;
+    setDelta(runtime, 'leftUpperLeg', legSwing, 0, sway * 0.10);
+    setDelta(runtime, 'rightUpperLeg', -legSwing, 0, sway * 0.10);
+    setDelta(runtime, 'leftLowerLeg', kneeL, 0, 0);
+    setDelta(runtime, 'rightLowerLeg', kneeR, 0, 0);
+    setDelta(runtime, 'leftFoot', -Math.max(0, stride) * 0.16, 0, 0);
+    setDelta(runtime, 'rightFoot', -Math.max(0, -stride) * 0.16, 0, 0);
+  }
 
-  const vertical = (legacy.visual.position.y || 0) / runtime.modelScale;
-  addPosition(runtime, 'hips', sway * 0.035 / runtime.modelScale, vertical, 0);
+  const vertical = ((legacy.visual.position.y || 0) + step * (run ? 0.025 : 0.012)) / runtime.modelScale;
+  addPosition(runtime, 'hips', sway * 0.020 / runtime.modelScale, vertical, 0);
 }
 
 function animateSecondary(runtime, elapsed, intensity, moving) {
@@ -323,7 +416,7 @@ export function updateVrmRuntime(state, options) {
   const intent = options && options.intent || 'Idle';
   const intensity = options && options.moveIntensity || 0;
   const moving = Boolean(options && options.moving);
-  syncHumanPose(runtime, legacy, elapsed, intent, intensity, moving);
+  syncHumanPose(runtime, legacy, elapsed, intent, intensity, moving, options && options.actorActionName, options && options.actorActionProgress);
   animateSecondary(runtime, elapsed, intensity, moving);
   animateExpressions(runtime, elapsed, intent, options && options.actorActionName);
   state.model.updateMatrixWorld(false);
