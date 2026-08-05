@@ -37,8 +37,15 @@ jobs:
               s=s.replace("from '../utils/BufferGeometryUtils.js';", "from './BufferGeometryUtils.js';")
               s=s.replace("from '../utils/SkeletonUtils.js';", "from './SkeletonUtils.js';")
               p.write_text(s)
+          offenders=[]
+          for p in root.glob('*.js'):
+              for number,line in enumerate(p.read_text().splitlines(),1):
+                  stripped=line.strip()
+                  if stripped.startswith('import ') and ("from 'three'" in stripped or '../utils/' in stripped):
+                      offenders.append(f'{p}:{number}:{line}')
+          if offenders:
+              raise SystemExit('\n'.join(offenders))
           PY
-          grep -R "from 'three'\|../utils" build/v8-three && exit 1 || true
       - name: Upload runtime bundle
         uses: actions/upload-artifact@v4
         with:
