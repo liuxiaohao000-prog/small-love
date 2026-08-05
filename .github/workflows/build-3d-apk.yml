@@ -1,0 +1,279 @@
+name: Build XiaoAi Manor 3D Anime Hotfix APK
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify and restore base project
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          expected = {
+            '00': (5000,'9127ed74bbb3b56c0d66762064c14b4f2ac7a27a0620d3d27db2c66ebb5a4084'),
+            '01': (5000,'64838f98e4a92ef0ff9dee293db7dab63b5c2f206cda2e651dffade5a2d0ee63'),
+            '02': (5000,'c90469bba2ac7a22cba8bccc3526809a4adc0a3a4bd93a4534fc82a900017e19'),
+            '03': (5000,'fa6410b15c5082a7c3a08adfb36b074ab748d19f9559662188e913ab970bfd15'),
+            '04': (5000,'b0615097d771a04b42c2aaba56aafa893371e133afe81775aac17152d87e0dee'),
+            '05': (5000,'28fdea207babefaf635732a63fdbe1cc9740299322b5a0d447a8caf4f29cca43'),
+            '06': (5000,'cd55e10a8b95dabab6849cda05087712326c10aa21b2e537926878ec33957e3a'),
+            '07': (3360,'1e7a9ab250f490a2476b591cf3003156c6b057aaaabe84d80885cef979f78fc6'),
+          }
+          for key,(length,wanted) in expected.items():
+            data=''.join(Path(f'3d-build-payload/part.{key}').read_text().split())
+            actual=hashlib.sha256(data.encode()).hexdigest()
+            print('base',key,len(data),actual)
+            assert len(data)==length and actual==wanted
+          PY
+          cat \
+            3d-build-payload/part.00 3d-build-payload/part.01 \
+            3d-build-payload/part.02 3d-build-payload/part.03 \
+            3d-build-payload/part.04 3d-build-payload/part.05 \
+            3d-build-payload/part.06 3d-build-payload/part.07 \
+            > project.tar.gz.b64
+          base64 --decode project.tar.gz.b64 > project.tar.gz
+          echo '6e26b04767986c26a99d8409158ebf27450932b01939f347fc28ca957e40beba  project.tar.gz' | sha256sum -c -
+          mkdir project
+          tar -xzf project.tar.gz -C project
+          sed -i 's/android.useAndroidX=false/android.useAndroidX=true/' project/gradle.properties
+          grep -q '^android.useAndroidX=true$' project/gradle.properties
+
+      - name: Verify and apply v3 motion patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          expected = {
+            '00': (5000,'583a0df64d44b9b12afbde0440ee0b6adcfb1d04d640fcac1debca4a38ca5196'),
+            '01': (5000,'fc01aa2aa54a91aa414370c79ce2579a0c48525cc7b146c60210bedd252e8f66'),
+            '02': (5000,'9531b43852a68988f76d5a6fd22490e864359aa2bd05b9580da5231608a2603a'),
+            '03': (5000,'aed5425b67f729c3b4302e66d13bfa65848c8f0a810d97bf41cbc627b542bb35'),
+            '04': (5000,'05bf24bc23de5cac75713d17ecf62510007e700724831f1dfe977217b407b7d9'),
+            '05': (5000,'8881d54425ea725f5c20afeb12c8b5221b670673e03b20017738273bf7cf5b21'),
+            '06': (5000,'98d60050aabdad0e4c063bde35f223a3fb76c0c8a31f28b5de4da725e3f401a0'),
+            '07': (5000,'857908f97449f9d8ddd9089f6e1837c347a774fa3053dd6c6761bae7841097ff'),
+            '08': (5000,'028e2bc6e507d4f412063dea2917625bc679de2a1ccf9b44d07b177552f85866'),
+            '09': (4,'3394c8785b501eeed413367048c3c1c4959bd1866aa33291c5e63e16af0ce5ad'),
+          }
+          for key,(length,wanted) in expected.items():
+            data=''.join(Path(f'3d-v3-payload/part.{key}').read_text().split())
+            actual=hashlib.sha256(data.encode()).hexdigest()
+            print('v3',key,len(data),actual)
+            assert len(data)==length and actual==wanted
+          PY
+          cat \
+            3d-v3-payload/part.00 3d-v3-payload/part.01 \
+            3d-v3-payload/part.02 3d-v3-payload/part.03 \
+            3d-v3-payload/part.04 3d-v3-payload/part.05 \
+            3d-v3-payload/part.06 3d-v3-payload/part.07 \
+            3d-v3-payload/part.08 3d-v3-payload/part.09 \
+            > motion-patch.tar.gz.b64
+          base64 --decode motion-patch.tar.gz.b64 > motion-patch.tar.gz
+          echo 'adc92b0abf583f383cf100dabec3c2224fbf80804aa77555f26df3e7f38176ec  motion-patch.tar.gz' | sha256sum -c -
+          tar -xzf motion-patch.tar.gz -C project
+
+      - name: Verify and apply v4 anime model and direction patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          expected = {
+            '00': (5000,'a5c224ca8273a0956fc1877ea076d05e9db23f1fbd0cc436795c71dd16a61d5d'),
+            '01': (5000,'8a1e44c8a2ef4e434237d12a83f9e6769ab0db977fe0c9dcbb99592809d24f98'),
+            '02': (5000,'7234bcdd994bb077d331c386131eb45a64d56df8286c7badf35af7e2652351c2'),
+            '03': (5000,'d7505ea491a97f133b33828fc29643bad6c7caa2d81248cc10ba8e1aed657c15'),
+            '04': (5000,'f69e47606b79bd55d8ddba9b665e0c7c1adc1491f65d4891d3aaa03ed36fc799'),
+            '05': (5000,'8fd18aac2d05561e7fa1aeda61053a1eafd89fe5f2112e03f4f9c1cdb85a90c1'),
+            '06': (5000,'850223225d7efeb3816aa4fc7f1fe909ea8d7488f55d9b2de7dd07219994ff85'),
+            '07a': (2450,'f2fe4493bb3f27d08551bbb7db7dc1297961313b5db3d46d2d115c2357aa881c'),
+            '07b': (2458,'2e0e2dcbe045a7e0d97576b7e5b115be2f4daddee5d95581690bf152e02b9d14'),
+          }
+          for key,(length,wanted) in expected.items():
+            data=''.join(Path(f'3d-v4-payload/part.{key}').read_text().split())
+            actual=hashlib.sha256(data.encode()).hexdigest()
+            print('v4',key,len(data),actual)
+            assert len(data)==length and actual==wanted
+          PY
+          cat \
+            3d-v4-payload/part.00 3d-v4-payload/part.01 \
+            3d-v4-payload/part.02 3d-v4-payload/part.03 \
+            3d-v4-payload/part.04 3d-v4-payload/part.05 \
+            3d-v4-payload/part.06 3d-v4-payload/part.07a 3d-v4-payload/part.07b \
+            > anime-v4-patch.tar.gz.b64
+          base64 --decode anime-v4-patch.tar.gz.b64 > anime-v4-patch.tar.gz
+          echo '1f1b62e8f397ffbd6d45034ea595c58b34f4513671285c5f5d48883bb376751b  anime-v4-patch.tar.gz' | sha256sum -c -
+          tar -xzf anime-v4-patch.tar.gz -C project
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('project/app/build.gradle')
+          s=p.read_text()
+          s2,n1=re.subn(r'versionCode\s+\d+', 'versionCode 6', s, count=1)
+          s3,n2=re.subn(r'versionName\s+["\'][^"\']+["\']', 'versionName "4.0.1-anime-hotfix"', s2, count=1)
+          assert n1==1 and n2==1, (n1,n2)
+          p.write_text(s3)
+          PY
+
+      - name: Apply Android WebView iterable compatibility hotfix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('project/app/src/main/assets/www/game3d.js')
+          s=p.read_text()
+          old="""function part(parent, geometry, material, position = [0, 0, 0], rotation = [0, 0, 0], scale = [1, 1, 1]) {
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.set(...position);
+            mesh.rotation.set(...rotation);
+            mesh.scale.set(...scale);"""
+          new="""function xyz(value, fallback = [0, 0, 0]) {
+            if (Array.isArray(value)) return [value[0] ?? fallback[0], value[1] ?? fallback[1], value[2] ?? fallback[2]];
+            if (value && typeof value === 'object') return [value.x ?? value._x ?? fallback[0], value.y ?? value._y ?? fallback[1], value.z ?? value._z ?? fallback[2]];
+            return fallback.slice();
+          }
+
+          function part(parent, geometry, material, position = [0, 0, 0], rotation = [0, 0, 0], scale = [1, 1, 1]) {
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.set(...xyz(position));
+            mesh.rotation.set(...xyz(rotation));
+            mesh.scale.set(...xyz(scale, [1, 1, 1]));"""
+          assert old in s
+          s=s.replace(old,new,1)
+          s=s.replace('pivot.position.set(...pivotPosition);','pivot.position.set(...xyz(pivotPosition));')
+          s=s.replace('object.position.set(...position);','object.position.set(...xyz(position));')
+          s=s.replace('object.rotation.set(...rotation);','object.rotation.set(...xyz(rotation));')
+          s=s.replace('object.scale.set(...scale);','object.scale.set(...xyz(scale, [1, 1, 1]));')
+          s=s.replace("UI.loadingText.textContent = `3D 场景加载失败：${error?.message || error}`;", "UI.loadingText.textContent = `3D 场景加载失败：${error?.message || error}`;\n  console.error('XiaoAi 3D fatal', error?.stack || error);")
+          p.write_text(s)
+          index=Path('project/app/src/main/assets/www/index.html')
+          html=index.read_text().replace('小爱庄园 3D 动作版','小爱庄园 3D 动漫版',2).replace('3D Motion Alpha v3.0','3D Anime Hotfix v4.0.1')
+          index.write_text(html)
+          PY
+
+      - name: Bundle Three.js r184 offline
+        shell: bash
+        run: |
+          set -euo pipefail
+          TGZ=$(npm pack three@0.184.0 --silent | tail -1)
+          tar -xzf "$TGZ"
+          cp package/build/three.module.min.js project/app/src/main/assets/www/vendor/three.module.min.js
+          cp package/build/three.core.min.js project/app/src/main/assets/www/vendor/three.core.min.js
+          MODULE_BYTES=$(wc -c < project/app/src/main/assets/www/vendor/three.module.min.js)
+          CORE_BYTES=$(wc -c < project/app/src/main/assets/www/vendor/three.core.min.js)
+          test "$MODULE_BYTES" -gt 250000
+          test "$CORE_BYTES" -gt 100000
+          grep -q 'WebGLRenderer' project/app/src/main/assets/www/vendor/three.module.min.js
+          grep -q 'Vector3' project/app/src/main/assets/www/vendor/three.core.min.js
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle 9.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.1.0'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install API 36
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'platform-tools'
+
+      - name: Validate source, anime models, controls and animation coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          JS=project/app/src/main/assets/www/game3d.js
+          node --check "$JS"
+          grep -q 'function xyz(value, fallback' "$JS"
+          grep -q 'mesh.position.set(...xyz(position))' "$JS"
+          grep -q 'object.scale.set(...xyz(scale, \[1, 1, 1\]))' "$JS"
+          grep -q 'function addAnimeOutline' "$JS"
+          grep -q "root.userData.modelVersion='anime-v4'" "$JS"
+          grep -q "document.documentElement.dataset.controlVersion = 'direction-fixed-v4'" "$JS"
+          grep -q 'joy.set(-x/max, y/max)' "$JS"
+          grep -q 'velocity.addScaledVector(right,input.x).addScaledVector(forward,input.y)' "$JS"
+          grep -q 'function playPetDog' "$JS"
+          grep -q 'fishing-bait-cast' "$JS"
+          grep -q 'delivery-place-package' "$JS"
+          grep -q 'water-crops' "$JS"
+          grep -q 'cafe-stir-serve' "$JS"
+          grep -q 'photo-focus-shutter' "$JS"
+          grep -q 'document.documentElement.dataset.gameReady' "$JS"
+          grep -q 'Math.min(window.devicePixelRatio || 1, 1.5)' "$JS"
+          grep -q '1000/60' "$JS"
+          grep -q 'oneplus12-balanced-3d-60' project/app/src/main/java/com/xiaoyu/xiaoai/MainActivity.java
+          grep -q 'WebViewAssetLoader' project/app/src/main/java/com/xiaoyu/xiaoai/MainActivity.java
+          grep -q 'three.core.min.js' project/app/src/main/assets/www/vendor/three.module.min.js
+          ! grep -q 'android.permission.INTERNET' project/app/src/main/AndroidManifest.xml
+
+      - name: Build APK
+        shell: bash
+        run: gradle --no-daemon --stacktrace -p project :app:assembleDebug
+
+      - name: Verify and prepare artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=project/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          unzip -t "$APK" >/dev/null
+          unzip -Z1 "$APK" > apk-files.txt
+          grep -q 'assets/www/vendor/three.module.min.js' apk-files.txt
+          grep -q 'assets/www/vendor/three.core.min.js' apk-files.txt
+          unzip -p "$APK" assets/www/game3d.js > packaged-game3d.js
+          grep -q 'function addAnimeOutline' packaged-game3d.js
+          grep -q 'function xyz(value, fallback' packaged-game3d.js
+          grep -q 'mesh.position.set(...xyz(position))' packaged-game3d.js
+          grep -q "root.userData.modelVersion='anime-v4'" packaged-game3d.js
+          grep -q 'direction-fixed-v4' packaged-game3d.js
+          grep -q 'joy.set(-x/max, y/max)' packaged-game3d.js
+          grep -q 'fishing-bait-cast' packaged-game3d.js
+          grep -q 'function playPetDog' packaged-game3d.js
+          grep -q 'water-crops' packaged-game3d.js
+          grep -q 'cafe-stir-serve' packaged-game3d.js
+          $ANDROID_HOME/build-tools/36.0.0/apksigner verify --verbose --print-certs "$APK" > signing-info.txt
+          $ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK" > build-info.txt
+          cat build-info.txt
+          grep -q "package: name='com.xiaoyu.xiaoai.debug'" build-info.txt
+          grep -q "versionCode='6'" build-info.txt
+          grep -q "versionName='4.0.1-anime-hotfix-debug'" build-info.txt
+          grep -q "launchable-activity: name='com.xiaoyu.xiaoai.MainActivity'" build-info.txt
+          mkdir dist
+          cp "$APK" dist/xiaoai-manor-3d-anime-oneplus12-v4.0.1-hotfix.apk
+          cp signing-info.txt build-info.txt dist/
+          sha256sum dist/xiaoai-manor-3d-anime-oneplus12-v4.0.1-hotfix.apk > dist/SHA256SUMS.txt
+          ls -lh dist
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: xiaoai-manor-3d-anime-oneplus12-v4.0.1-hotfix
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
